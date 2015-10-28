@@ -1,0 +1,10 @@
+[package]
+name = "matasano_crypto_challanges"
+version = "0.1.0"
+authors = ["David Craven <david@craven.ch>"]
+
+[dependencies]
+rand = "0.3"
+
+[dependencies.simple_crypto_lib]
+path = "deps/simple-crypto-lib"

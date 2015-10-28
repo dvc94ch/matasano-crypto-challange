@@ -1,0 +1,5 @@
+devenv:
+  image: dvc94ch/rust-openssl
+  volumes:
+    - .:/project
+    - ..:/project/deps:ro
