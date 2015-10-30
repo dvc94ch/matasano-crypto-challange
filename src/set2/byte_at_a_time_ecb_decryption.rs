@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use simple_crypto_lib::Mode;
 use simple_crypto_lib::{crack, symm, utils};
 
-static RANDOM_PREFIX: &'static str = "";//"SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
+static RANDOM_PREFIX: &'static str = "SSdtIGtp"; //bGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
 static SECRET_KEY: &'static str = "c61afa6d692cd4897fef9b444e0b2c82";
 static SECRET_STRING: &'static str =
     "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGll\
@@ -12,6 +12,7 @@ static SECRET_STRING: &'static str =
 pub fn encrypt_with_chosen_plaintext(chosen_plain_text: &Vec<u8>) -> Vec<u8> {
     // AES-128-ECB(random-prefix || your-string || unknown-string, random-key)
     let mut random_prefix = utils::from_base64(&String::from(RANDOM_PREFIX));
+    //println!("random prefix length {}", random_prefix.len());
     let mut chosen_plain_text = chosen_plain_text.to_owned();
     let mut secret_plain_text = utils::from_base64(&String::from(SECRET_STRING));
     random_prefix.append(&mut chosen_plain_text);
@@ -21,10 +22,10 @@ pub fn encrypt_with_chosen_plaintext(chosen_plain_text: &Vec<u8>) -> Vec<u8> {
     crypter.encrypt(&random_prefix)
 }
 
-pub fn decrypt_ecb(blocksize: usize) -> Vec<u8> {
-    let mut plain_text: Vec<u8> = Vec::with_capacity(blocksize);
-    let mut index_queue: VecDeque<u8> = vec![65u8; blocksize - 1].into_iter().collect();
-    let mut block_id: usize = 0;
+pub fn decrypt_ecb(blocksize: usize, block_start: usize, block_offset: usize) -> Vec<u8> {
+    let mut plain_text: Vec<u8> = Vec::new();
+    let mut index_queue: VecDeque<u8> = vec![65u8; blocksize - 1 + block_offset].into_iter().collect();
+    let mut block_id: usize = block_start;
 
     loop {
         // decrypt unknow-string one byte at a time
@@ -37,20 +38,20 @@ pub fn decrypt_ecb(blocksize: usize) -> Vec<u8> {
                 },
                 _ => (),
             }
-            //debug(&index_queue.iter().map(|elem| *elem).collect());
+            debug(&index_queue.iter().map(|elem| *elem).collect());
 
             // create dictionary
             let mut dict: HashMap<String, u8> = HashMap::with_capacity(255);
             for byte in 0..255 {
                 index_queue.push_back(byte);
                 let block = index_queue.iter().map(|elem| *elem).collect();
-                dict.insert(get_block_as_hex(&block, 0).unwrap(), byte);
+                dict.insert(get_block_as_hex(&block, block_start).unwrap(), byte);
                 index_queue.pop_back();
             }
 
             // prepare padding block
-            let padding = vec![65u8; 15 - i];
-            //debug(&padding);
+            let padding = vec![65u8; 15 - i + block_offset];
+            debug(&padding);
 
             // decrypt byte
             let block = get_block_as_hex(&padding, block_id);
@@ -64,10 +65,12 @@ pub fn decrypt_ecb(blocksize: usize) -> Vec<u8> {
 pub fn decrypt_secret_string() -> String {
     // discover blocksize
     let blocksize = find_blocksize();
-    // detect ecb
-    assert_eq!(is_ecb_mode(), true);
-
-    utils::to_ascii(&decrypt_ecb(blocksize))
+    assert_eq!(blocksize, 16);
+    // detect ecb and get offset
+    let (offset, start) = find_offset();
+    println!("{} {}", offset, start);
+    // find starting block and offset
+    utils::to_ascii(&decrypt_ecb(blocksize, start, offset))
 }
 
 pub fn get_block_as_hex(block: &Vec<u8>, at: usize) -> Option<String> {
@@ -90,10 +93,16 @@ pub fn find_blocksize() -> usize {
     }
 }
 
-pub fn is_ecb_mode() -> bool {
-    let chosen_plain_text = vec![0u8; 16 * 3];
-    let cipher_text = encrypt_with_chosen_plaintext(&chosen_plain_text);
-    crack::aes::contains_duplicate_blocks(cipher_text)
+pub fn find_offset() -> (usize, usize) {
+    for i in 0..16 {
+        let chosen_plain_text = vec![0u8; 16 * 2 + i];
+        let cipher_text = encrypt_with_chosen_plaintext(&chosen_plain_text);
+        let index = crack::aes::find_duplicate_block(cipher_text);
+        if index >= 0 {
+            return (i, index as usize);
+        }
+    }
+    panic!("not ecb mode");
 }
 
 pub fn debug(vec: &Vec<u8>) {
@@ -111,11 +120,6 @@ mod tests {
     #[test]
     fn test_find_blocksize() {
         assert_eq!(find_blocksize(), 16);
-    }
-
-    #[test]
-    fn test_is_ecb_mode() {
-        assert_eq!(is_ecb_mode(), true);
     }
 
     #[test]
