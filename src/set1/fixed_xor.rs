@@ -1,9 +1,9 @@
-use simple_crypto_lib::{hex, xor};
+use simple_crypto_lib::{utils, xor};
 
 pub fn fixed_xor(hex1: &mut String, hex2: &mut String) -> String {
-    let bytes1 = hex::from_hex(&hex1);
-    let bytes2 = hex::from_hex(&hex2);
-    hex::to_hex(&xor::xor(&bytes1, &bytes2))
+    let bytes1 = utils::from_hex(&hex1);
+    let bytes2 = utils::from_hex(&hex2);
+    utils::to_hex(&xor::xor(&bytes1, &bytes2))
 }
 
 #[cfg(test)]

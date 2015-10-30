@@ -1,32 +1,19 @@
 use rand;
 
-use simple_crypto_lib::symm;
+use simple_crypto_lib::Mode;
+use simple_crypto_lib::{crack, symm, utils};
 
-pub fn encryption_oracle(plain_text: Vec<u8>) -> Vec<u8> {
-    let key = random_vec(16);
-    let aes: Box<symm::Mode> = match rand::random() {
-        true => box symm::AesEcbMode::new(key) as Box<symm::Mode>,
-        false => box symm::AesCbcMode::new(key, [0u8; 16]) as Box<symm::Mode>,
-    };
-    aes.encrypt(&plain_text)
+pub fn encryption_oracle() -> Box<Mode> {
+    let key = utils::random_bytes(16);
+    match rand::random() {
+        true => box symm::AesEcbMode::new(key) as Box<Mode>,
+        false => box symm::AesCbcMode::new(key, [0u8; 16]) as Box<Mode>,
+    }
 }
 
 pub fn detect_aes_mode() -> bool {
-    let plain_text = vec![0u8; 64];
-    let cipher_text = encryption_oracle(plain_text);
-    if &cipher_text[0..16] == &cipher_text[16..32] {
-        true
-    } else {
-        false
-    }
-}
-
-pub fn random_vec(size: usize) -> Vec<u8> {
-    let mut vec: Vec<u8> = Vec::with_capacity(size);
-    for _ in 0..size {
-        vec.push(rand::random::<u8>());
-    }
-    vec
+    let crypter = encryption_oracle();
+    crack::aes::is_ecb_mode(crypter)
 }
 
 #[cfg(test)]
