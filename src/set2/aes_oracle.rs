@@ -7,7 +7,7 @@ pub fn encryption_oracle() -> Box<Mode> {
     let key = utils::random_bytes(16);
     match rand::random() {
         true => box symm::AesEcbMode::new(key) as Box<Mode>,
-        false => box symm::AesCbcMode::new(key, [0u8; 16]) as Box<Mode>,
+        false => box symm::AesCbcMode::new(key) as Box<Mode>,
     }
 }
 

@@ -4,14 +4,9 @@ use simple_crypto_lib::{symm, utils};
 static SECRET_KEY: &'static str = "90431260cfc515e6cc94199eeccaf045";
 
 pub fn profile_for(email: String) -> Vec<u8> {
-    let mut encoded_string = String::from("email=");
-    for c in email.chars() {
-        if c == '&' || c == '=' {
-            continue;
-        }
-        encoded_string.push(c);
-    }
-    encoded_string = encoded_string + "&uid=10&role=user";
+    let encoded_string = String::from("email=") +
+        &utils::escape(email, vec!['=', ';'])[..] +
+        "&uid=10&role=user";
 
     let key = utils::from_hex(&String::from(SECRET_KEY));
     let aes = symm::AesEcbMode::new(key);
@@ -30,7 +25,7 @@ pub fn create_admin_profile() -> Vec<u8> {
     // email needs to be 13 chars long to offset the admin part into a separate block
     let email = String::from("dvc@craven.ch");
     // fake email needs to have 10 chars to offset admin block
-    let fake_email = String::from("abcdefghij") + "admin\x04\x04\x04\x04\x04\x04\x04\x04\x04\x04\x04";
+    let fake_email = String::from("abcdefghij") + "admin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B";
     let mut profile = profile_for(email)[0..32].to_vec();
     let mut admin_block = profile_for(fake_email)[16..32].to_vec();
     profile.append(&mut admin_block);

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use simple_crypto_lib::Mode;
-use simple_crypto_lib::{crack, symm, utils};
+use simple_crypto_lib::{Mode, Padder};
+use simple_crypto_lib::{crack, padder, symm, utils};
 
-static RANDOM_PREFIX: &'static str = "SSdtIGtp"; //bGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
+static RANDOM_PREFIX: &'static str = "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
 static SECRET_KEY: &'static str = "c61afa6d692cd4897fef9b444e0b2c82";
 static SECRET_STRING: &'static str =
     "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGll\
@@ -38,7 +38,7 @@ pub fn decrypt_ecb(blocksize: usize, block_start: usize, block_offset: usize) ->
                 },
                 _ => (),
             }
-            debug(&index_queue.iter().map(|elem| *elem).collect());
+            //println!("{}", utils::to_ascii(&index_queue.iter().map(|elem| *elem).collect()));
 
             // create dictionary
             let mut dict: HashMap<String, u8> = HashMap::with_capacity(255);
@@ -51,12 +51,14 @@ pub fn decrypt_ecb(blocksize: usize, block_start: usize, block_offset: usize) ->
 
             // prepare padding block
             let padding = vec![65u8; 15 - i + block_offset];
-            debug(&padding);
+            //println!("{}", utils::to_ascii(&padding));
 
             // decrypt byte
             let block = get_block_as_hex(&padding, block_id);
             if block.is_none() { return plain_text; }
-            plain_text.push(*dict.get(&block.unwrap()).unwrap());
+            let byte = dict.get(&block.unwrap());
+            if byte.is_none() { return plain_text; }
+            plain_text.push(*byte.unwrap());
         }
         block_id += 1;
     }
@@ -66,11 +68,13 @@ pub fn decrypt_secret_string() -> String {
     // discover blocksize
     let blocksize = find_blocksize();
     assert_eq!(blocksize, 16);
-    // detect ecb and get offset
-    let (offset, start) = find_offset();
-    println!("{} {}", offset, start);
     // find starting block and offset
-    utils::to_ascii(&decrypt_ecb(blocksize, start, offset))
+    let (offset, start) = find_offset();
+    // decrypt
+    let secret = decrypt_ecb(blocksize, start, offset);
+    // unpad
+    let padder = padder::Pkcs7Padder::new(blocksize);
+    utils::to_ascii(&padder.unpad(&secret[..]))
 }
 
 pub fn get_block_as_hex(block: &Vec<u8>, at: usize) -> Option<String> {
@@ -105,14 +109,6 @@ pub fn find_offset() -> (usize, usize) {
     panic!("not ecb mode");
 }
 
-pub fn debug(vec: &Vec<u8>) {
-    let mut debug = String::new();
-    for byte in vec {
-        debug.push(*byte as char);
-    }
-    println!("{};", debug);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,8 +122,7 @@ mod tests {
     fn test_decrypt_ecb() {
         let expected =
             "Rollin\' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby \
-            waving just to say hi\nDid you stop? No, I just drove by\n\u{4}\u{4}\u{4}\u{4}\u{4}\
-            \u{4}\u{4}\u{4}\u{4}\u{4}\u{4}\u{4}\u{4}\u{4}\u{4}\u{4}";
+            waving just to say hi\nDid you stop? No, I just drove by\n";
         assert_eq!(decrypt_secret_string(), expected);
     }
 }
